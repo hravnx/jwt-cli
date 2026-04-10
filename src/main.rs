@@ -26,7 +26,7 @@ fn run() -> Result<(), String> {
         return Err("expected a JWT on stdin".to_string());
     }
 
-    let payload = decode_jwt_payload(token)?;
+    let payload = decode_jwt_payload(token).map_err(|error| error.to_string())?;
     println!("{payload}");
 
     Ok(())

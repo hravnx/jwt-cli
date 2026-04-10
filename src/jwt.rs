@@ -1,33 +1,59 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use std::fmt;
 
-pub fn decode_jwt_payload(token: &str) -> Result<String, String> {
+#[derive(Debug)]
+pub enum DecodeJwtError {
+    MissingHeader,
+    MissingPayload,
+    MissingSignature,
+    InvalidSegmentCount,
+    InvalidBase64(base64::DecodeError),
+    InvalidUtf8(std::string::FromUtf8Error),
+}
+
+impl fmt::Display for DecodeJwtError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingHeader => write!(f, "JWT is missing a header"),
+            Self::MissingPayload => write!(f, "JWT is missing a payload"),
+            Self::MissingSignature => write!(f, "JWT is missing a signature"),
+            Self::InvalidSegmentCount => {
+                write!(f, "JWT must contain exactly three dot-separated segments")
+            }
+            Self::InvalidBase64(error) => write!(f, "payload is not valid base64url: {error}"),
+            Self::InvalidUtf8(error) => write!(f, "payload is not valid UTF-8: {error}"),
+        }
+    }
+}
+
+pub fn decode_jwt_payload(token: &str) -> Result<String, DecodeJwtError> {
     let mut parts = token.split('.');
 
     let _header = parts
         .next()
-        .ok_or_else(|| "JWT is missing a header".to_string())?;
+        .ok_or(DecodeJwtError::MissingHeader)?;
     let payload = parts
         .next()
-        .ok_or_else(|| "JWT is missing a payload".to_string())?;
+        .ok_or(DecodeJwtError::MissingPayload)?;
     let _signature = parts
         .next()
-        .ok_or_else(|| "JWT is missing a signature".to_string())?;
+        .ok_or(DecodeJwtError::MissingSignature)?;
 
     if parts.next().is_some() {
-        return Err("JWT must contain exactly three dot-separated segments".to_string());
+        return Err(DecodeJwtError::InvalidSegmentCount);
     }
 
     let decoded = URL_SAFE_NO_PAD
         .decode(payload)
-        .map_err(|error| format!("payload is not valid base64url: {error}"))?;
+        .map_err(DecodeJwtError::InvalidBase64)?;
 
-    String::from_utf8(decoded).map_err(|error| format!("payload is not valid UTF-8: {error}"))
+    String::from_utf8(decoded).map_err(DecodeJwtError::InvalidUtf8)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::decode_jwt_payload;
+    use super::{DecodeJwtError, decode_jwt_payload};
 
     #[test]
     fn decodes_payload_segment() {
@@ -42,6 +68,6 @@ mod tests {
     fn rejects_wrong_number_of_segments() {
         let error = decode_jwt_payload("a.b").expect_err("token should be rejected");
 
-        assert!(error.contains("missing a signature"));
+        assert!(matches!(error, DecodeJwtError::MissingSignature));
     }
 }
