@@ -2,13 +2,20 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use std::fmt;
 
+/// Errors that can occur while decoding the payload segment of a JWT.
 #[derive(Debug)]
 pub enum DecodeJwtError {
+    /// The token did not include a header segment.
     MissingHeader,
+    /// The token did not include a payload segment.
     MissingPayload,
+    /// The token did not include a signature segment.
     MissingSignature,
+    /// The token contained more than three dot-separated segments.
     InvalidSegmentCount,
+    /// The payload segment could not be decoded as base64url.
     InvalidBase64(base64::DecodeError),
+    /// The decoded payload bytes were not valid UTF-8 text.
     InvalidUtf8(std::string::FromUtf8Error),
 }
 
@@ -27,6 +34,10 @@ impl fmt::Display for DecodeJwtError {
     }
 }
 
+/// Decodes the payload segment from a JWT and returns it as UTF-8 text.
+///
+/// The input must contain exactly three dot-separated segments. The payload
+/// segment is decoded using base64url without padding.
 pub fn decode_jwt_payload(token: &str) -> Result<String, DecodeJwtError> {
     let mut parts = token.split('.');
 
